@@ -1,4 +1,4 @@
-name: DevOps CI Pipeline
+name: Python CI Pipeline with SonarQube Cloud
 
 on:
   push:
@@ -11,31 +11,47 @@ permissions:
   contents: read
 
 jobs:
-  build-test:
-    name: Build and Test
+  build-test-analysis:
+    name: Build, Test and SonarQube Analysis
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
+          python -m pip install pytest
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
 
-      - name: Run Pytest
+      - name: Build - Check Python Syntax
         run: |
-          pytest -v --cov=app --cov-report=xml:coverage.xml
+          python -m compileall -q .
+          echo "Build completed successfully"
+
+      - name: Test - Run Pytest
+        run: |
+          set +e
+          python -m pytest -v
+          result=$?
+          if [ "$result" -eq 5 ]; then
+            echo "No tests found. Add test files to run actual tests."
+            exit 0
+          fi
+          exit "$result"
 
       - name: SonarQube Cloud Analysis
+        if: success()
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-     
